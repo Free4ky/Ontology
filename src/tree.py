@@ -9,6 +9,7 @@ class Node:
 class Tree:
     def __init__(self):
         self.tree_names = []
+        self.classes_with_slots = []
         self.root = None
 
     # FIX find all nodes!
@@ -22,16 +23,19 @@ class Tree:
             if result is not None:
                 return result
 
-    def visit(self, current, level=0, slot=None):
+    def visit(self, current, level=0, slot=None, get_classes=False):
         if current is None:
             return
-        if slot is not None:
+        if get_classes:
+            if slot in current.slots.keys():
+                self.classes_with_slots.append(current.class_name)
+        if slot is not None and not get_classes:
             current.slots[slot] = ''
         else:
             self.tree_names.append((level, current.class_name))
         print(f'{"  " * level} {current.class_name} : {current.slots}')
         for child in current.children:
-            self.visit(child, level + 1, slot)
+            self.visit(child, level + 1, slot, get_classes)
 
     def add_node(self, parent_name: str, children: list):
         parent = self.find_node(self.root, parent_name)

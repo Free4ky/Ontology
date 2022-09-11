@@ -129,12 +129,15 @@ class ConfigureSlots(tk.Frame):
         super(ConfigureSlots, self).__init__(parent, *args, **kwargs)
         self.slots = parent.slots
         self.parent = parent
+        self.assigned_class_labels = []
         # LABELS
+        assigned_classes_label = ttk.Label(self, text='ASSIGNED CLASSES', style='TLabel')
         slots_label = ttk.Label(self, text='SLOT', style='Heading.TLabel')
         classes_label = ttk.Label(self, text='CLASS', style='Heading.TLabel')
         # WIDGETS
         self.slots_combo = ttk.Combobox(self, values=list(self.slots.keys()))
         self.classes_combo = ttk.Combobox(self, values=list(map(lambda x: x[1], parent.tree.tree_names)))
+        self.slots_combo.bind('<<ComboboxSelected>>', self.show_classes)
         # BUTTONS
         self.assign_slots_button = ttk.Button(
             self,
@@ -147,11 +150,27 @@ class ConfigureSlots(tk.Frame):
         self.assign_slots_button.grid(row=1, column=2, padx=10)
         slots_label.grid(row=0, column=0, pady=5)
         classes_label.grid(row=0, column=1, pady=5)
+        assigned_classes_label.grid(row=2, column=0, pady=30)
         # STYLING
         self.style = ttk.Style(parent)
         self.style.configure('Heading.TLabel', font=('Helvetica', 14))
+        self.style.configure('TLabel', font=('Helvetica', 10))
         slots_label.configure(background=parent.background)
         classes_label.configure(background=parent.background)
+        assigned_classes_label.configure(background=parent.background)
+
+    def show_classes(self, event):
+        for label in self.assigned_class_labels:
+            label.grid_forget()
+        self.assigned_class_labels.clear()
+        tree = self.parent.tree
+        tree.classes_with_slots = []
+        tree.visit(tree.root, slot=self.slots_combo.get(), get_classes=True)
+        classes = tree.classes_with_slots
+        for i, c in enumerate(classes):
+            label = ttk.Label(self, text=c, background=self.parent.background)
+            label.grid(row=3 + i, column=0, sticky=tk.W, padx=(20, 0))
+            self.assigned_class_labels.append(label)
 
     def assign_slots(self):
         tree = self.parent.tree

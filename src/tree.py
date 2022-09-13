@@ -1,5 +1,6 @@
 class Node:
-    def __init__(self, parent=None, class_name='no name'):
+    def __init__(self, parent=None, class_name='no name', is_instance=False):
+        self.is_instance = is_instance
         self.parent = parent
         self.class_name = class_name
         self.children = []
@@ -31,7 +32,7 @@ class Tree:
                 self.classes_with_slots.append(current.class_name)
         if slot is not None and not get_classes:
             current.slots[slot] = ''
-        else:
+        elif slot is None and not current.is_instance:
             self.tree_names.append((level, current.class_name))
         print(f'{"  " * level} {current.class_name} : {current.slots}')
         for child in current.children:

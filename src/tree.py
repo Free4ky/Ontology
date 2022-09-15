@@ -8,9 +8,17 @@ class Node:
 
 
 class Tree:
+    convert = {
+        'int': (lambda x: int(x)),
+        'float': (lambda x: float(x)),
+        'string': (lambda x: str(x))
+    }
+
     def __init__(self):
         self.tree_names = []
         self.classes_with_slots = []
+        self.query_result = []
+        self.ancestors = []
         self.root = None
 
     # FIX find all nodes!
@@ -24,19 +32,34 @@ class Tree:
             if result is not None:
                 return result
 
-    def visit(self, current, level=0, slot=None, get_classes=False):
+    def visit(self, current, level=0, slot=None, get_classes=False, query=False, mode=None, value=None):
         if current is None:
             return
+        if query:
+            if current.is_instance:
+                print(current.slots)
+                for k, v in current.slots.items():
+                    if isinstance(current.slots[k], tuple):
+                        current.slots[k] = Tree.convert.get(v[1])(v[0])
+                if mode == 'больше':
+                    if current.slots[slot] > value:
+                        self.query_result.append(current)
+                if mode == 'меньше':
+                    if current.slots[slot] < value:
+                        self.query_result.append(current)
+                if mode == 'равен':
+                    if current.slots[slot] == value:
+                        self.query_result.append(current)
         if get_classes:
-            if slot in current.slots.keys():
+            if slot[0] in current.slots.keys() and not current.is_instance:
                 self.classes_with_slots.append(current.class_name)
-        if slot is not None and not get_classes:
-            current.slots[slot] = ''
+        if slot is not None and not get_classes and not query:
+            current.slots[slot[0]] = slot[1]
         elif slot is None and not current.is_instance:
             self.tree_names.append((level, current.class_name))
         print(f'{"  " * level} {current.class_name} : {current.slots}')
         for child in current.children:
-            self.visit(child, level + 1, slot, get_classes)
+            self.visit(child, level + 1, slot, get_classes, query, mode, value)
 
     def add_node(self, parent_name: str, children: list):
         parent = self.find_node(self.root, parent_name)
@@ -47,3 +70,10 @@ class Tree:
         if len(children) > 1:
             for node in children:
                 parent.children.append(Node(parent, class_name=node))
+
+    def find_ancestors(self, current):
+        if current is None:
+            return
+        if not current.is_instance:
+            self.ancestors.append(current.class_name)
+        self.find_ancestors(current.parent)

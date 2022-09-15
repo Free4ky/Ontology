@@ -24,6 +24,9 @@ class Menu(tk.Menu):
         self.add_cascade(label='Режим', menu=mode_menu)
 
     def forget_widgets(self):
+        if 'instance_bar' in self.parent.widgets.keys():
+            if self.parent.widgets['instance_bar'].configure_slots_frame is not None:
+                self.parent.widgets['instance_bar'].configure_slots_frame.pack_forget()
         for name, widget in self.parent.widgets.items():
             widget.pack_forget()
 
@@ -175,7 +178,7 @@ class InstanceBar(NavBar):
         for i, (slot_name, value) in enumerate(self.current_instance.slots.items()):
             label = ttk.Label(entries_frame, text=slot_name, background=background)
             entry = ttk.Entry(entries_frame)
-            entry.insert(0, value)
+            entry.insert(0, value[0])
             self.entries.append(entry)
             label.grid(row=i + 1, column=0, padx=3)
             entry.grid(row=i + 1, column=1, padx=3)
@@ -191,8 +194,8 @@ class InstanceBar(NavBar):
 
     def update_slots(self):
         self.current_instance.class_name = self.instance_name_entry.get()
-        for i, slot_name in enumerate(self.current_instance.slots.keys()):
-            self.current_instance.slots[slot_name] = self.entries[i].get()
+        for i, (slot_name, value) in enumerate(self.current_instance.slots.items()):
+            self.current_instance.slots[slot_name] = (self.entries[i].get(), value[1])
 
 
 class TreeBar(NavBar):
@@ -215,6 +218,108 @@ class TreeBar(NavBar):
                 label = ttk.Label(self, text=name, background=self.background, style='Heading.TLabel')
                 self.node_labels.append(label)
                 label.pack(padx=(level * 25, 0), anchor=tk.NW)
+
+
+class FindBar(NavBar):
+    def __init__(self, parent, *args, **kwargs):
+        super(FindBar, self).__init__(parent, *args, **kwargs)
+        self.parent = parent
+        self.background = kwargs['background']
+        self.tree = parent.tree
+        self.instances = []
+        self.main_window = self.parent.parent
+        # FRAMES
+        combobox_frame = tk.Frame(self, background=self.background)
+        # COMBOBOXES
+        self.instances_combobox = ttk.Combobox(combobox_frame, values=[i.class_name for i in self.tree.query_result])
+        self.instances_combobox.bind('<<ComboboxSelected>>', self.show_instance_info)
+        # PLACING
+        combobox_frame.pack(side='bottom', fill='x')
+        self.instances_combobox.pack()
+
+    def update_bar(self):
+        for label in self.instances:
+            label.pack_forget()
+        self.instances.clear()
+        for i in self.tree.query_result:
+            label = ttk.Label(self, text=i.class_name, background=self.background)
+            label.pack()
+            self.instances.append(label)
+        self.instances_combobox['values'] = [i.class_name for i in self.tree.query_result]
+
+    def show_instance_info(self, event):
+        self.w = PopupInstanceInfo(self.main_window, self, header='ИНФОРМАЦИЯ О СУЩНОСТИ')
+        self.main_window.wait_window(self.w.top)
+
+
+class QueryBar(tk.Frame):
+    def __init__(self, parent, *args, **kwargs):
+        super(QueryBar, self).__init__(parent, *args, **kwargs)
+        self.parent = parent
+        self.background = kwargs['background']
+        # INIT STUFF
+        self.tree = parent.tree
+        self.current_slots = []
+        self.current_class = None
+        # FRAMES
+        header_frame = tk.Frame(self, background=self.background)
+        query_frame = tk.Frame(self, background=self.background)
+        # LABELS
+        class_label = ttk.Label(query_frame, style='TLabel', text='КЛАСС', background=self.background)
+        slot_label = ttk.Label(query_frame, style='TLabel', text='СЛОТ', background=self.background)
+        value_label = ttk.Label(query_frame, style='TLabel', text='ЗНАЧЕНИЕ', background=self.background)
+        header = ttk.Label(header_frame, text='ЗАПРОС', style='Heading.TLabel', background=self.background)
+        # ENTRIES
+        self.value_entry = ttk.Entry(query_frame, width=20)
+        # COMBOBOXES
+        self.classes_combobox = ttk.Combobox(
+            query_frame,
+            values=list(map(lambda x: x[1], self.tree.tree_names)))
+        self.classes_combobox.bind('<<ComboboxSelected>>', self.get_slots)
+        self.variants = ttk.Combobox(
+            query_frame,
+            values=[
+                'равен',
+                'больше',
+                'меньше'
+            ]
+        )
+        # BUTTONS
+        self.find_button = ttk.Button(
+            query_frame,
+            text='Найти',
+            command=self.find_instances
+        )
+        self.slots_combobox = ttk.Combobox(query_frame, values=self.current_slots)
+        # PACKING
+        header_frame.pack()
+        header.pack(anchor=tk.CENTER)
+        query_frame.pack(side='left', fill='both', expand=True, pady=30)
+        class_label.grid(row=0, column=0, padx=3, pady=5)
+        slot_label.grid(row=0, column=1, padx=3, pady=5)
+        value_label.grid(row=0, column=3, padx=3, pady=5)
+        self.classes_combobox.grid(row=1, column=0, padx=3)
+        self.slots_combobox.grid(row=1, column=1, padx=3)
+        self.variants.grid(row=1, column=2, padx=3)
+        self.value_entry.grid(row=1, column=3, padx=3)
+        self.find_button.grid(row=1, column=4, padx=3)
+
+    def get_slots(self, event):
+        self.current_class = self.tree.find_node(self.tree.root, self.classes_combobox.get())
+        self.current_slots = list(self.current_class.slots.keys())
+        self.slots_combobox['value'] = self.current_slots
+
+    def find_instances(self):
+        mode = self.variants.get()
+        # visit and find !instances! that satisfy query settings
+        tree = self.tree
+        tree.query_result = []
+        # query settings
+        slot = self.slots_combobox.get()
+        v_type = self.current_class.slots[slot]
+        value = Tree.convert.get(v_type)(self.value_entry.get())
+        tree.visit(tree.root, slot=slot, query=True, mode=mode, value=value)
+        self.parent.widgets['find_bar'].update_bar()
 
 
 class InputBar(tk.Frame):
@@ -289,7 +394,8 @@ class ConfigureSlots(tk.Frame):
         self.assigned_class_labels.clear()
         tree = self.parent.tree
         tree.classes_with_slots = []
-        tree.visit(tree.root, slot=self.slots_combo.get(), get_classes=True)
+        slot = self.slots_combo.get()
+        tree.visit(tree.root, slot=(slot, self.parent.slots[slot]), get_classes=True)
         classes = tree.classes_with_slots
         for i, c in enumerate(classes):
             label = ttk.Label(self, text=c, background=self.parent.background)
@@ -303,7 +409,7 @@ class ConfigureSlots(tk.Frame):
         slot = self.slots_combo.get()
         target_class = self.classes_combo.get()
         node = tree.find_node(root, target_class)
-        tree.visit(node, slot=slot)
+        tree.visit(node, slot=(slot, self.parent.slots[slot]))
         self.show_classes(event=None)
 
 
@@ -318,6 +424,54 @@ class PopupWindow:
         # POSITIONING
         frame_for_header.pack()
         header_label.pack()
+
+
+class PopupInstanceInfo(PopupWindow):
+    def __init__(self, master_window, parent, header):
+        super(PopupInstanceInfo, self).__init__(master_window, parent, header)
+        self.top.geometry('400x200')
+        self.parent = parent
+        self.tree = self.parent.tree
+        self.tree.ancestors = []
+        self.ancestors_labels = []
+        node = self.tree.find_node(self.tree.root, self.parent.instances_combobox.get())
+        self.tree.find_ancestors(node)
+        # FRAMES
+        button_frame = tk.Frame(self.top)
+        ancestors_frame = tk.Frame(self.top)
+        info_frame = tk.Frame(self.top)
+        # BUTTONS
+        self.confirm_button = ttk.Button(
+            button_frame,
+            text='Закрыть',
+            command=self.cleanup
+        )
+        # LABELS
+        ancestor_label = tk.Label(ancestors_frame, text='ПРЕДКИ:')
+        ancestor_label.grid(row=0, column=0, padx=10)
+        for i, name in enumerate(self.tree.ancestors):
+            label = ttk.Label(ancestors_frame, text=name)
+            label.grid(row=0, column=i + 1, padx=3)
+
+        slot_label = ttk.Label(info_frame, text='СЛОТ')
+        value_label = ttk.Label(info_frame, text='ЗНАЧЕНИЕ')
+        slot_label.grid(row=0, column=0, padx=30)
+        value_label.grid(row=0, column=1, padx=30)
+
+        for i, (slot_name, value) in enumerate(node.slots.items()):
+            name = tk.Label(info_frame, text=slot_name)
+            val = tk.Label(info_frame, text=value)
+            name.grid(row=i + 1, column=0, padx=30)
+            val.grid(row=i + 1, column=1, padx=30)
+
+        # PLACING
+        button_frame.pack(side='bottom')
+        ancestors_frame.pack(side='bottom')
+        info_frame.pack(pady=30)
+        self.confirm_button.pack(side='bottom')
+
+    def cleanup(self):
+        self.top.destroy()
 
 
 class PopupForInstances(PopupWindow):
@@ -383,8 +537,8 @@ class PopupForInstances(PopupWindow):
     def cleanup(self):
         instance = Node(parent=self.chosen_class, is_instance=True)
         instance.class_name = self.instance_name_entry.get()
-        for i, slot_name in enumerate(self.chosen_class.slots.keys()):
-            instance.slots[slot_name] = self.entries[i].get()
+        for i, (slot_name, value) in enumerate(self.chosen_class.slots.items()):
+            instance.slots[slot_name] = (self.entries[i].get(), value)
         self.chosen_class.children.append(instance)
         print(instance.slots)
         self.top.destroy()
@@ -418,7 +572,7 @@ class PopupForSlots(PopupWindow):
     def cleanup(self):
         name = self.slot_entry.get()
         if len(name) != 0:
-            self.parent.parent.slots[name] = ('', self.types.get())
+            self.parent.parent.slots[name] = self.types.get()
             print(self.parent.parent.slots[name])
             self.parent.parent.widgets['slots_configuration'].slots = deepcopy(self.parent.parent.slots)
             self.parent.parent.widgets['slots_configuration'].slots_combo['values'] = list(
@@ -449,8 +603,8 @@ class SlotsBar(NavBar):
     def update_slots(self):
         for label in self.slot_labels:
             label.pack_forget()
-        for i, name in enumerate(self.parent.slots.keys()):
-            label = ttk.Label(self, text=name, background=self.background, style='Heading.TLabel')
+        for i, (name, value) in enumerate(self.parent.slots.items()):
+            label = ttk.Label(self, text=f'{name}:{value}', background=self.background, style='Heading.TLabel')
             label.pack(anchor=tk.NW)
             self.slot_labels.append(label)
 
@@ -491,8 +645,11 @@ class MainApplication(tk.Frame):
             self.widgets['instance_bar'].pack(side='left', fill='y')
         elif self.mode == 'query':
             self.widgets = {
-
+                'query_bar': QueryBar(self, background='light grey'),
+                'find_bar': FindBar(self, 'РЕЗУЛЬТАТ ПОИСКА', background='#ABABAB', )
             }
+            self.widgets['query_bar'].pack(side='left', fill='both', expand=True)
+            self.widgets['find_bar'].pack(side='right', fill='y')
 
     def add_node(self):
         parent = self.widgets['input_bar'].parent_entry.get()
@@ -503,7 +660,7 @@ class MainApplication(tk.Frame):
 
 
 HEIGHT = 400
-WIDTH = 800
+WIDTH = 900
 
 
 def start():

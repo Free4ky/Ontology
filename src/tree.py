@@ -1,3 +1,6 @@
+import graphviz as gv
+
+
 class Node:
     def __init__(self, parent=None, class_name='no name', is_instance=False):
         self.is_instance = is_instance
@@ -20,6 +23,9 @@ class Tree:
         self.query_result = []
         self.ancestors = []
         self.root = None
+        self.image = gv.Digraph()
+        self.image.format = 'png'
+        self.image_nodes = []
 
     # FIX find all nodes!
     def find_node(self, current, target):
@@ -77,3 +83,16 @@ class Tree:
         if not current.is_instance:
             self.ancestors.append(current.class_name)
         self.find_ancestors(current.parent)
+
+    def build_graph(self, current):
+        if current is None:
+            return
+        if current.class_name not in self.image_nodes:
+            self.image.node(current.class_name, current.class_name)
+            self.image_nodes.append(current.class_name)
+        for child in current.children:
+            if child.class_name not in self.image_nodes:
+                self.image.node(child.class_name, child.class_name)
+                self.image_nodes.append(child.class_name)
+            self.image.edge(current.class_name, child.class_name)
+            self.build_graph(child)

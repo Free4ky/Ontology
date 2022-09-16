@@ -19,9 +19,17 @@ class Menu(tk.Menu):
         mode_menu.add_command(label='Слоты', command=self.slots_mode)
         mode_menu.add_command(label='Сущности', command=self.instance_mode)
         mode_menu.add_command(label='Запрос', command=self.query_mode)
+        mode_menu.add_command(label='Иерархия', command=self.hierarchy_mode)
         # MAIN MENU
         self.add_cascade(label="Файл", menu=file_menu)
         self.add_cascade(label='Режим', menu=mode_menu)
+
+    def show_hierarchy(self):
+        tree = self.parent.tree
+        tree.image = gv.Digraph()
+        tree.image.format = 'png'
+        tree.build_graph(tree.root)
+        tree.image.render(directory='./img')
 
     def forget_widgets(self):
         if 'instance_bar' in self.parent.widgets.keys():
@@ -53,8 +61,28 @@ class Menu(tk.Menu):
         self.parent.create_widgets()
         self.parent.widgets['tree_bar'].update_bar()
 
+    def hierarchy_mode(self):
+        self.show_hierarchy()
+        self.forget_widgets()
+        self.parent.mode = 'hierarchy'
+        self.parent.create_widgets()
+
     def on_exit(self):
         self.parent.quit()
+
+
+class ImageBar(tk.Frame):
+    def __init__(self, parent, *args, **kwargs):
+        super(ImageBar, self).__init__(parent, *args, **kwargs)
+        try:
+            self.img = tk.PhotoImage(file='./img/Digraph.gv.PNG')
+            tk.Label(
+                self,
+                image=self.img
+            ).pack()
+
+        except Exception as e:
+            print(e)
 
 
 class NavBar(tk.Frame):
@@ -650,6 +678,11 @@ class MainApplication(tk.Frame):
             }
             self.widgets['query_bar'].pack(side='left', fill='both', expand=True)
             self.widgets['find_bar'].pack(side='right', fill='y')
+        elif self.mode == 'hierarchy':
+            self.widgets = {
+                'image': ImageBar(self, background=self.background)
+            }
+            self.widgets['image'].pack(expand=1)
 
     def add_node(self):
         parent = self.widgets['input_bar'].parent_entry.get()
